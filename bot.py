@@ -46,6 +46,15 @@ def get_valuteButtom():
 
 VALUTE_BUTTOM = get_valuteButtom()
 
+# Создаем хэндлер первого выбора валюты
+@dp.message(Command('rates'))
+async def cmd_rates(message: types.Message):
+    if not message.from_user.id in user_data.keys():
+        user_data[message.from_user.id] = None
+        await message.answer('Выберите валюту:', reply_markup=VALUTE_BUTTOM)
+    else: await message.answer('Конвертер валют уже запущен!')
+
+
 # изменяем сообщение с учетом валюты
 async def editMessage_valute(message: types.Message, valute: str, valueRu: str, edit: Optional[str] = ''):
     with suppress(TelegramBadRequest):
@@ -65,20 +74,12 @@ async def get_APIvalute(message: types.Message, dataValute: str):
                 confKurs = dataReq['Valute'][dataValute]['Value']
                 return confKurs
     except Exception as e:
-        logging.exception("Ошибка в получении курса")
-        await message.answer(f"Произошла ошибка: {str(e)}")
+        logging.exception(f"Произошла ошибка: {str(e)}")
+        await message.answer('Что то пошло не так, попробуйте позже...')
 
 
-# Создаем хэндлер первого выбора валюты
-@dp.message(Command('rates'))
-async def cmd_rates(message: types.Message):
-    if not message.from_user.id in user_data.keys():
-        user_data[message.from_user.id] = None
-        await message.answer('Выберите валюту:', reply_markup=VALUTE_BUTTOM)
-    else: await message.answer('Конвертер валют уже запущен!')
-
-async def show_currency(message, dataValute: str, confKurs: str, edit: Optional[str] = ''):
-
+async def show_currency(message, dataValute: str, edit: Optional[str] = ''):
+    confKurs = await get_APIvalute(message, dataValute)
     valut_conf = {'USD': 'доллар', 'EUR': 'евро', 'CNY': 'юань'}
     await editMessage_valute(message, valut_conf[dataValute], confKurs, edit)
 
@@ -90,19 +91,9 @@ async def cmd_SelectkonvertValute_valute(
         callback_data: CallbackValuteFactory
 ):
     dataValute = callback_data.valute
-
-    confKurs = await get_APIvalute(callback.message, dataValute)
-
     user_data[callback.from_user.id] = dataValute
 
-    if dataValute == 'USD':
-        await editMessage_valute(callback.message, 'доллар', confKurs)
-    elif dataValute == 'EUR':
-        await editMessage_valute(callback.message, 'евро', confKurs)
-    elif dataValute == 'CNY':
-        await editMessage_valute(callback.message, 'юань', confKurs)
-    elif dataValute not in ['USD', 'EUR', 'CNY']:
-        await callback.message.edit_text("Невалидная валюта", reply_markup=VALUTE_BUTTOM)
+    await show_currency(callback.message, dataValute)
 
     await callback.answer()
 
@@ -117,18 +108,9 @@ async def cmd_RefreshkonvertValute_valute(
             await callback.message.edit_text('Сначала выберите валюту', reply_markup=VALUTE_BUTTOM)
         return
 
-    print(f"User {user_id} state:", user_data.get(user_id))
     dataValute = user_data.get(callback.from_user.id, 0)
-    confKurs = await get_APIvalute(callback.message, str(dataValute))
 
-    if dataValute == 'USD':
-        await editMessage_valute(callback.message, 'доллар', confKurs, edit='Обновлено')
-    elif dataValute == 'EUR':
-        await editMessage_valute(callback.message, 'евро', confKurs, edit='Обновлено')
-    elif dataValute == 'CNY':
-        await editMessage_valute(callback.message, 'юань', confKurs, edit='Обновлено')
-    elif dataValute not in ['USD', 'EUR', 'CNY']:
-        await callback.message.edit_text("Невалидная валюта", reply_markup=VALUTE_BUTTOM)
+    await show_currency(callback.message, str(dataValute), edit='(Обновлено)')
 
     await callback.answer()
 
